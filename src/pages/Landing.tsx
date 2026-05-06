@@ -17,7 +17,9 @@ export function Landing() {
         {/* Background Image Layer */}
         <div 
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat pointer-events-none"
-          style={{ backgroundImage: "url('/images/hero.png')" }}
+          {/* style={{ backgroundImage: "url('/images/hero.png')" }} */}
+          {/* style={{ backgroundImage: "url('/Offer-Garden/images/hero.png')" }} */}
+          style={{ backgroundImage: `url('${import.meta.env.BASE_URL}images/hero.png')` }}
         />
         
         {/* Overlay Mask - Subtle gradient instead of heavy block mask */}
@@ -67,7 +69,9 @@ export function Landing() {
         {/* Background Layer for Second Screen */}
         <div 
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat pointer-events-none opacity-80"
-          style={{ backgroundImage: "url('/images/section.png')" }}
+          {/* style={{ backgroundImage: "url('/images/section.png')" }} */}
+          {/* style={{ backgroundImage: "url('/Offer-Garden/images/section.png')" }} */}
+          style={{ backgroundImage: `url('${import.meta.env.BASE_URL}images/section.png')` }}
         />
         <div className="absolute inset-0 z-[1] pointer-events-none bg-neutral-950/40" />
 
