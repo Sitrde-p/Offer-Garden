@@ -242,7 +242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: 'demo-test-active',
         company: '小红书',
         role: '前端开发实习生',
-        stage: ' test',
+        stage: 'test',
         status: 'test_in_progress',
         resumeSummary:'参与过校园二手交易平台前端开发，使用 React、TypeScript 和 Tailwind CSS 完成商品列表、搜索筛选、用户发布流程等模块；优化过列表渲染性能，并负责接口联调与页面状态管理。',
         jdText:'负责社区内容产品的前端页面开发；要求熟悉 React、TypeScript、组件化开发和基础性能优化；具备良好的交互还原能力和接口联调经验。',
