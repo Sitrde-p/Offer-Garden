@@ -239,7 +239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]
       },
       {
-        id: 'demo-interview-active',
+        id: 'demo-test-active',
         company: '小红书',
         role: '前端开发实习生',
         stage: ' test',
@@ -252,8 +252,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatedAt: formatDate(2),
         timeline: [
           { date: formatDate(18), label: '已投递，待反馈', status: 'waiting_feedback' },
-          { date: formatDate(12), label: '收到面试邀请', status: 'interview_invitation' },
-          { date: formatDate(5), label: '群面进行中', status: 'group_interview' },
+          { date: formatDate(12), label: '收到测评邀请', status: 'test_invitation' },
+          { date: formatDate(5), label: '测评进行中', status: 'test_in_progress' },
         ]
       },
       {
