@@ -33,6 +33,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          GITHUB_ACTIONS: true  # 明确告诉 Vite 这是 GitHub Pages 构建
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
