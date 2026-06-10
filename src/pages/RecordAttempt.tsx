@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { useAppContext } from '../context/AppContext';
-import { ResumeUploader } from '../components/ResumeUploader';  // 添加上传PDF简历
+// import { ResumeUploader } from '../components/ResumeUploader';  // 添加上传PDF简历
 import { getStatusLabel, getStageLabel, getMoodLabel, formatHistoryItem } from '../lib/utils';
 import { Attempt, AttemptStatus, AttemptStage, Mood } from '../types';
 import { motion } from 'motion/react';
@@ -75,7 +75,7 @@ export function RecordAttempt() {
   const [mood, setMood] = useState<Mood | undefined>();
   const [notes, setNotes] = useState('');
   const [timeline, setTimeline] = useState<any[]>([]);
-  // const [fileAttached, setFileAttached] = useState(false); // Simulated file upload
+  const [fileAttached, setFileAttached] = useState(false); // Simulated file upload
   const [errorMsg, setErrorMsg] = useState('');
 
   const isUpdateMode = !!editId;
@@ -89,7 +89,7 @@ export function RecordAttempt() {
         setStage(existing.stage || 'application');
         setStatus(existing.status);
         // set(existing. || '');
-        // setJdText(existing.jdText || '');   // 添加这一行
+        setJdText(existing.jdText || '');   
         setResumeSummary(existing.resumeSummary || '');
         setDescription(existing.description || '');
         setMood(existing.mood);
@@ -354,8 +354,9 @@ export function RecordAttempt() {
             <div className="space-y-3 pt-4 border-t border-white/5">
               <label className="text-sm font-medium text-white/80">简历材料 <span className="text-red-500/50">*</span></label>
 
-                {/* 方案一：新的 PDF 上传组件（优先使用） */}
-              <div className="mb-4">
+               
+             {/* 方案一：新的 PDF 上传组件（优先使用） */}
+             {/*  <div className="mb-4">
                 <ResumeUploader 
                   onTextExtracted={(text) => setResumeSummary(text)}
                   onFileRemoved={() => setResumeSummary('')}
@@ -363,10 +364,10 @@ export function RecordAttempt() {
                 <p className="text-[10px] text-white/30 mt-2 text-center">
                   支持上传 PDF，AI 将自动解析简历内容
                 </p>
-              </div>
+              </div> */}
 
-                {/* 方案二：原来的手动输入（降级备选） */}
-              <div className="relative">
+              {/* 方案二：原来的手动输入（降级备选） */}
+              {/*<div className="relative">
                 <div className="absolute -top-3 left-4 px-2 text-[10px] font-bold text-white/20 bg-[#050711] z-10">
                   或者手动填写
                 </div>
@@ -377,9 +378,8 @@ export function RecordAttempt() {
                   className="h-28 text-sm bg-white/5 border-white/10 focus:border-indigo-500/30 pt-4"
                 />
               </div>
-            </div>
-              
-              {/*
+            </div>  */}
+           
               <div className="grid sm:grid-cols-2 gap-6">
                  <div 
                    onClick={() => setFileAttached(!fileAttached)}
@@ -410,16 +410,7 @@ export function RecordAttempt() {
                     />
                  </div>
               </div>
-            </div> */}
-            
-            {/* PDF简历上传 */}
-            <div className="space-y-3 pt-4 border-t border-white/5">
-              <label className="text-sm font-medium text-white/80">简历材料 <span className="text-red-500/50">*</span></label>
-              <ResumeUploader 
-                onTextExtracted={(text) => setResumeSummary(text)}
-                onFileRemoved={() => setResumeSummary('')}
-              />
-            </div>
+            </div> 
             
             <div className="space-y-2">
               <label className="text-sm font-medium text-white/80">岗位详情 / 要求 <span className="text-red-500/50">*</span></label>
