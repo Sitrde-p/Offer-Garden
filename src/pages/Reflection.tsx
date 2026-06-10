@@ -400,6 +400,25 @@ async function generateRealReflection(attempt: Attempt): Promise<ReflectionData>
 请基于以上信息，生成一份个性化的求职复盘。`;
 
   try {
+    const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'replay',       // 告诉后端这是“复盘”场景
+        context: {              // 把结构化数据发给后端，让它去拼提示词
+          company: attempt.company,
+          position: attempt.role,
+          stage: attempt.stage,
+          status: attempt.status,
+          jd: attempt.jdText || '',
+          resume: attempt.resumeSummary || '',
+          notes: attempt.notes || '',
+          mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+        }
+      })
+    });
+    
+    /*
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -407,7 +426,7 @@ async function generateRealReflection(attempt: Attempt): Promise<ReflectionData>
         message: userMessage,
         system: AI_SYSTEM_PROMPT
       })
-    });
+    });*/
     
     if (!response.ok) {
       throw new Error(`API 请求失败: ${response.status}`);
