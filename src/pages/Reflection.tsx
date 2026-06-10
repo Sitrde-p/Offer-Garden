@@ -9,6 +9,26 @@ import { useAppContext } from '../context/AppContext';
 import { getStatusLabel, getMoodLabel } from '../lib/utils';
 import { Attempt, ReflectionData, AttemptStatus } from '../types';
 
+// ========== 新增：系统 Prompt（放在文件顶部，import 之后） ==========
+const AI_SYSTEM_PROMPT = `你是 Offer Garden 的 AI 成长教练。你的使命不是安慰，也不是评判，而是帮助用户把一次求职受挫转化为可记录、可理解、可行动的经验。
+
+你的回复需要体现以下理念：
+- 每一次被拒，都是下一次出发的勇气
+- 失败不是能力判决书，而是匹配度反馈
+- 用户需要的不是空泛安慰，而是具体的、可执行的下一步
+
+请按照以下结构输出 JSON，不要输出其他内容：
+{
+  "mainReason": ["原因1", "原因2"],
+  "evidence": "基于用户提供的信息，给出具体证据",
+  "nextActions": [
+    {"id": "1", "task": "具体、微小、可执行的行动", "completed": false}
+  ],
+  "emotionalReframe": "温和但不空泛的一句话，重新解释这次经历"
+}
+
+注意：避免使用"可能""或许"等模糊词汇。每条原因和建议都要有针对性。`;
+
 export function Reflection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -43,18 +63,28 @@ export function Reflection() {
     if (FAILURE_STATUSES.includes(data.status) && (!hasCurrentReflection || regenerate)) {
       setAttempt(data);
       setLoading(true);
-      const timer = setTimeout(() => {
-        const mockReflection = generateMockReflection(data);
-        mockReflection.sourceStatus = data.status;
-        setAttempt(prev => prev ? { ...prev, reflection: mockReflection } : null);
-        setLoading(false);
-      }, 2500);
-      return () => clearTimeout(timer);
-    } else {
-      setAttempt(data);
-      setLoading(false);
+      // 尝试调用真实 API
+      generateRealReflection(data)
+        .then(reflection => {
+          reflection.sourceStatus = data.status;
+          setAttempt(prev => prev ? { ...prev, reflection } : null);
+          setLoading(false);
+        })
+        .catch(() => {
+          // API 失败时的降级：使用原有 Mock（带延迟，保留体验）
+          const timer = setTimeout(() => {
+            const mockReflection = generateMockReflection(data);
+            mockReflection.sourceStatus = data.status;
+            setAttempt(prev => prev ? { ...prev, reflection: mockReflection } : null);
+            setLoading(false);
+          }, 2500);
+          return () => clearTimeout(timer);
+        } else {
+          setAttempt(data);
+          setLoading(false);
+        }
+      }, [id, getAttempt, navigate, searchParams]);
     }
-  }, [id, getAttempt, navigate, searchParams]);
 
   const handleClaim = () => {
     if (attempt && attempt.reflection) {
@@ -337,6 +367,88 @@ const EMOTIONAL_POOL: Record<string, string[]> = {
     "在逆风中发芽的种子，根系往往最深。请相信时间的力量，也请相信你自己的坚持。"
   ]
 };
+
+// ========== 新增：真实 API 调用函数 ==========
+async function generateRealReflection(attempt: Attempt): Promise<ReflectionData> {
+  // 状态映射
+  const statusMap: Record<string, string> = {
+    resume_screen_failed: '简历初筛未通过',
+    test_failed: '测评未通过',
+    group_interview_failed: '群面未通过',
+    first_interview_failed: '一面未通过',
+    second_interview_failed: '二面未通过',
+    third_interview_failed: '三面未通过',
+  };
+  
+  const statusText = statusMap[attempt.status] || '面试未通过';
+  
+  // 安全获取字段，避免 undefined 导致 JSON 解析错误
+  const jdText = attempt.jdText || '用户未填写岗位要求';
+  const resumeSummary = attempt.resumeSummary || '用户未填写简历内容';
+  const notes = attempt.notes || '无';
+  const mood = attempt.mood ? getMoodLabel(attempt.mood) : '未记录心情';
+  
+  const userMessage = `用户求职经历：
+- 公司：${attempt.company}
+- 岗位：${attempt.role}
+- 结果：${statusText}
+- 当时心情：${mood}
+- 岗位要求：${jdText}
+- 简历内容：${resumeSummary}
+- 补充说明：${notes}
+
+请基于以上信息，生成一份个性化的求职复盘。`;
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: userMessage,
+        system: AI_SYSTEM_PROMPT
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API 请求失败: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    let parsed;
+    
+    try {
+      parsed = JSON.parse(data.reply);
+    } catch (e) {
+      console.error('JSON 解析失败，原始返回:', data.reply);
+      throw new Error('API 返回格式错误');
+    }
+    
+    // 确保数据结构完整，防止字段缺失
+    return {
+      mainReason: Array.isArray(parsed.mainReason) && parsed.mainReason.length > 0 
+        ? parsed.mainReason 
+        : ["需要更多信息来分析原因，建议补充岗位要求和简历内容。"],
+      evidence: typeof parsed.evidence === 'string' && parsed.evidence.length > 0 
+        ? parsed.evidence 
+        : "请补充岗位要求和简历内容，以便获得更精准的分析。",
+      nextActions: Array.isArray(parsed.nextActions) && parsed.nextActions.length > 0 
+        ? parsed.nextActions 
+        : [{ id: '1', task: "补充岗位JD和简历信息，让下次复盘更精准", completed: false }],
+      emotionalReframe: typeof parsed.emotionalReframe === 'string' && parsed.emotionalReframe.length > 0 
+        ? parsed.emotionalReframe 
+        : "每一次记录都是成长的开始。继续向前，你会走得更远。🌱",
+      couragePointEarned: false,
+      generatedAt: new Date().toISOString(),
+      sourceStatus: attempt.status
+    };
+  } catch (error) {
+    console.error('API调用失败，使用Mock降级', error);
+    // 降级到原有 Mock
+    const mockResult = generateMockReflection(attempt);
+    mockResult.sourceStatus = attempt.status;
+    return mockResult;
+  }
+}
 
 function generateMockReflection(attempt: Attempt): ReflectionData {
   let statusKey = attempt.status as string;
