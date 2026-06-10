@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { useAppContext } from '../context/AppContext';
+import { ResumeUploader } from '../components/ResumeUploader';  // 添加上传PDF简历
 import { getStatusLabel, getStageLabel, getMoodLabel, formatHistoryItem } from '../lib/utils';
 import { Attempt, AttemptStatus, AttemptStage, Mood } from '../types';
 import { motion } from 'motion/react';
@@ -69,7 +70,7 @@ export function RecordAttempt() {
   const [stage, setStage] = useState<AttemptStage>('application');
   const [status, setStatus] = useState<AttemptStatus>('waiting_feedback');
   const [jdText, setJdText] = useState('');
-  const [resumeSummary, setResumeSummary] = useState('');
+  const [resumeSummary, setResumeSummary] = useState(''); // PDF简历
   const [description, setDescription] = useState('');
   const [mood, setMood] = useState<Mood | undefined>();
   const [notes, setNotes] = useState('');
@@ -87,7 +88,7 @@ export function RecordAttempt() {
         setRole(existing.role);
         setStage(existing.stage || 'application');
         setStatus(existing.status);
-        setJdText(existing.jdText || '');
+        set(existing. || '');
         setResumeSummary(existing.resumeSummary || '');
         setDescription(existing.description || '');
         setMood(existing.mood);
@@ -391,6 +392,28 @@ export function RecordAttempt() {
                 className="h-24 text-sm bg-white/5 border-white/5"
               />
             </div>
+
+            {/* 👇 新增：简历上传组件 */}
+            <div className="space-y-2 mt-4">
+              <ResumeUploader 
+                onTextExtracted={(text) => {
+                  setResumeSummary(text);  // 直接 set resumeSummary
+                }}
+                onFileRemoved={() => {
+                  setResumeSummary('');     // 清空 resumeSummary
+                }}
+                initialFileName={isUpdateMode ? existingResumeFileName : ''}
+              />
+            </div>
+            
+            {/* 可选：手动输入备选 */}
+            <textarea
+              placeholder="或者手动填写简历关键信息（项目经历、技能、实习等）"
+              value={resumeSummary}
+              onChange={(e) => setResumeSummary(e.target.value)}
+              className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white/80 text-sm mt-3"
+              rows={4}
+            />
 
             {feedbackConfig && (
               <div className="space-y-2">
