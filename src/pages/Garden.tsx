@@ -788,6 +788,129 @@ function OfferCommunicationModal({ attempt, onClose, onUpdate }: { attempt: Atte
 }
 
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAdvice = async () => {
+      try {
+        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'waitAdvice',
+            context: {
+              company: attempt.company,
+              position: attempt.role,
+              stage: attempt.stage,
+              status: attempt.status,
+              jd: attempt.jdText || '',
+              resume: attempt.resumeSummary || '',
+              notes: attempt.notes || '',
+              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API 请求失败: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        // chat.js 返回格式：{ advice, nextStep, reminder }
+        setAiAdvice(data.advice || data.nextStep || null);
+      } catch (error) {
+        console.error('获取等待建议失败', error);
+        setAiAdvice(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAdvice();
+  }, [attempt]); // 依赖 attempt，当 attempt 变化时重新获取
+
+  const defaultAdvice = "目前还没有拒信、筛选反馈或面试结果。你可以先检查简历与岗位关键词的匹配度，并在合适时间准备后续跟进。";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
+        style={{ maxHeight: '82vh' }}
+      >
+        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-blue-400 mb-1">
+              <div className="p-3 bg-blue-500/10 rounded-2xl">
+                <Clock className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white/90">等待建议</h2>
+            </div>
+            <p className="text-blue-400/60 text-[13px] font-medium leading-relaxed tracking-wide">这次还没有明确反馈，先别急着把沉默翻译成失败。</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
+            <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
+          </button>
+        </div>
+
+        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">AI 建议</h3>
+            <p className="text-[14px] text-white/70 leading-relaxed">
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400 animate-pulse" />
+                  AI 正在生成建议...
+                </span>
+              ) : (
+                aiAdvice || defaultAdvice
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">你可以做的事</h3>
+            <ul className="space-y-3">
+              {[
+                "检查岗位详情 / 要求中的核心关键词是否出现在简历材料中。",
+                "准备同类岗位的下一轮投递，不要把情绪全部压在一个无回应结果上。",
+                "如果已经等待较久，可以记录一次跟进提醒。"
+              ].map((item, i) => (
+                <li key={i} className="flex gap-3 text-[14px] text-white/50 leading-relaxed font-medium">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400/40 mt-1.5 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="p-5 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
+            <div className="text-[11px] font-black text-white/20 uppercase tracking-widest">当前心情</div>
+            <div className="text-[14px] text-white/60 font-bold">{getMoodLabel(attempt.mood)}</div>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5 grid grid-cols-2 gap-4">
+          <Button variant="ghost" className="w-full h-11 bg-white/5 hover:bg-white/10 text-white/60 text-[14px]" onClick={onClose}>返回花园</Button>
+          <Button className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-bold border-0 shadow-lg shadow-blue-500/20 text-[14px]" onClick={onUpdate}>更新记录</Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+{/* 
+function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <motion.div 
@@ -857,6 +980,7 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
     </div>
   );
 }
+*/}
 
 function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
   return (
