@@ -163,6 +163,17 @@ export function Garden() {
   // 原有的 Mock 逻辑（保持不变，作为降级）
   // Weekly Insight Mock Logic
   const weeklyInsight = useMemo(() => {
+    // AI loading state takes priority
+    if (isInsightLoading && attempts.length >= 2) {
+      return "AI 正在分析你的求职趋势...";
+    }
+  
+    // AI result if available
+    if (aiWeeklyInsight) {
+      return aiWeeklyInsight;
+    }
+  
+    // Fallback to mock logic
     if (attempts.length < 3) {
       return "记录更多尝试后，Offer Garden 会帮你发现常见卡点，例如简历筛选、笔试、面试表达或 Offer 选择。";
     }
@@ -179,14 +190,7 @@ export function Garden() {
     if (waiting >= 3) return "你目前有多条尝试仍在等待反馈。可以先准备同类岗位的下一轮投递，不必把所有情绪都压在一个结果上。";
     
     return "保持当前的投递节奏。记录每一次细微的反馈，它们都会在未来的复盘中为你指明方向。";
-  }, [attempts]);
-  
-  // 最终显示：AI 加载中 → AI 结果 → 默认 Mock
-  const weeklyInsight = (() => {
-    if (isInsightLoading && attempts.length >= 2) return "AI 正在分析你的求职趋势...";
-    if (aiWeeklyInsight) return aiWeeklyInsight;
-    return defaultWeeklyInsight;
-  })();
+  }, [attempts, isInsightLoading, aiWeeklyInsight]);
 
   const titleInfo = useMemo(() => {
     let currentTitle = TITLES[0];
