@@ -70,10 +70,14 @@ function getSystemPrompt(action) {
 
 返回格式必须严格如下：
 {
-  "reasons": ["可能原因1", "可能原因2", "可能原因3"],
-  "evidences": ["对应的客观证据1", "证据2", "证据3"],
-  "actions": ["具体可执行的行动1", "行动2", "行动3"],
-  "encouragement": "一段温暖但不空泛的鼓励话语（50字以内，要具体、有力量，不要只说'加油''别难过'）"
+  "mainReason": ["可能原因1", "可能原因2", "可能原因3"],
+  "evidence": "客观证据支持的完整句子（多个证据用分号隔开）",
+  "nextActions": [
+    {"id": "1", "task": "具体可执行的行动1", "completed": false},
+    {"id": "2", "task": "具体可执行的行动2", "completed": false},
+    {"id": "3", "task": "具体可执行的行动3", "completed": false}
+  ],
+  "emotionalReframe": "一段温暖但不空泛的鼓励话语（50字以内，要具体、有力量，不要只说'加油''别难过'）"
 }
 
 分析要求：
