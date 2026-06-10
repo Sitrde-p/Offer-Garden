@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { pdfToText } from 'react-pdftotext';
-import { Upload, X, Loader2, FileCheck } from 'lucide-react';
+import { Upload, X, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface ResumeUploaderProps {
   onTextExtracted: (text: string) => void;
@@ -68,7 +68,7 @@ export function ResumeUploader({
       {fileName ? (
         <div className="flex items-center justify-between p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
           <div className="flex items-center gap-3">
-            <FileCheck className="w-5 h-5 text-emerald-400" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             <div>
               <div className="text-sm font-medium text-white/80">{fileName}</div>
               <div className="text-xs text-white/30">简历已解析，AI 将基于此内容生成复盘</div>
