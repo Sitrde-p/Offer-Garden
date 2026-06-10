@@ -79,12 +79,12 @@ export function Reflection() {
             setLoading(false);
           }, 2500);
           return () => clearTimeout(timer);
-        } else {
-          setAttempt(data);
-          setLoading(false);
-        }
-      }, [id, getAttempt, navigate, searchParams]);
-    }
+         });
+      } else {
+        setAttempt(data);
+        setLoading(false);
+      }
+    }, [id, getAttempt, navigate, searchParams]); 
 
   const handleClaim = () => {
     if (attempt && attempt.reflection) {
