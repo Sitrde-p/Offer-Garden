@@ -909,6 +909,148 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
   );
 }
 
+function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
+  const [aiFocus, setAiFocus] = useState<string | null>(null);
+  const [aiTips, setAiTips] = useState<string[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAdvice = async () => {
+      try {
+        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'examPrep',
+            context: {
+              company: attempt.company,
+              position: attempt.role,
+              stage: attempt.stage,
+              status: attempt.status,
+              jd: attempt.jdText || '',
+              resume: attempt.resumeSummary || '',
+              notes: attempt.notes || '',
+              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API 请求失败: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        // chat.js 返回格式：{ focus, tips, resources }
+        setAiFocus(data.focus || null);
+        setAiTips(data.tips || null);
+      } catch (error) {
+        console.error('获取测评建议失败', error);
+        setAiFocus(null);
+        setAiTips(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAdvice();
+  }, [attempt]);
+
+  const defaultTips = [
+    { title: "确认测评类型", content: "先查看邮件或平台说明，判断是性格测评、逻辑测评、语言测评、编程题、数据分析题，还是综合测评。" },
+    { title: "对齐岗位能力", content: "根据 JD 中的关键词，优先准备最相关的能力项，例如编程基础、数据分析、产品思维、逻辑推理、沟通协作或业务理解。" },
+    { title: "做一次限时练习", content: "不要只看题，要模拟真实时间限制，提前适应节奏。" },
+    { title: "准备稳定环境", content: "提前检查网络、浏览器、摄像头、麦克风、输入法和安静环境。" },
+    { title: "保持答案一致性", content: "如果是性格或情景判断题，保持真实、稳定、一致，不要为了'讨好公司'前后矛盾。" }
+  ];
+
+  const displayTips = aiTips ? aiTips.map((tip, idx) => ({ title: `建议${idx + 1}`, content: tip })) : defaultTips;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
+        style={{ maxHeight: '82vh' }}
+      >
+        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-purple-400 mb-1">
+              <div className="p-3 bg-purple-500/10 rounded-2xl">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white/90">测评准备建议</h2>
+            </div>
+            <p className="text-purple-400/60 text-[13px] font-medium leading-relaxed">这一步通常考察基础能力、稳定性和岗位匹配度。先把节奏稳住。</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
+            <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
+          </button>
+        </div>
+
+        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
+          <div className="p-5 bg-purple-500/5 border border-purple-500/10 rounded-2xl flex items-start gap-3">
+            <Info className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-[14px] font-bold text-white/90">针对 {attempt.company} 的建议</h4>
+              {isLoading ? (
+                <p className="text-[13px] text-white/50 leading-relaxed font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                  AI 正在生成建议...
+                </p>
+              ) : (
+                <>
+                  {aiFocus && (
+                    <p className="text-[13px] text-purple-400 leading-relaxed font-medium">
+                      🎯 重点方向：{aiFocus}
+                    </p>
+                  )}
+                  {!aiFocus && (
+                    <p className="text-[13px] text-white/50 leading-relaxed font-medium">
+                      根据你记录的岗位信息和当前阶段，建议先确认测评类型，并围绕岗位要求准备对应题型。
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
+            <div className="space-y-5">
+              {displayTips.map((item, i) => (
+                <div key={i} className="flex gap-4 items-start">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
+                    {i + 1}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[14px] font-bold text-white/80">{item.title}</p>
+                    <p className="text-[13px] text-white/40 leading-relaxed font-medium">{item.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
+          <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
+            收到，去准备
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 {/* 
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   return (
@@ -980,7 +1122,6 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
     </div>
   );
 }
-*/}
 
 function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
   return (
@@ -1057,7 +1198,7 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
       </motion.div>
     </div>
   );
-}
+}*/}
 
 function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
   return (
