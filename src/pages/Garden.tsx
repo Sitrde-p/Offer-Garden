@@ -1051,6 +1051,137 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
   );
 }
 
+function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
+  const [aiKeyPoints, setAiKeyPoints] = useState<string[] | null>(null);
+  const [aiActionPlan, setAiActionPlan] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAdvice = async () => {
+      try {
+        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'interviewPrep',
+            context: {
+              company: attempt.company,
+              position: attempt.role,
+              stage: attempt.stage,
+              status: attempt.status,
+              jd: attempt.jdText || '',
+              resume: attempt.resumeSummary || '',
+              notes: attempt.notes || '',
+              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API 请求失败: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        // chat.js 返回格式：{ keyPoints, starTopics, questions, actionPlan }
+        setAiKeyPoints(data.keyPoints || null);
+        setAiActionPlan(data.actionPlan || null);
+      } catch (error) {
+        console.error('获取面试建议失败', error);
+        setAiKeyPoints(null);
+        setAiActionPlan(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAdvice();
+  }, [attempt]);
+
+  const defaultKeyPoints = [
+    "准备 3 个能够体现你解决复杂问题能力的 STAR 故事。",
+    "复盘项目中最核心的技术难点，写下至少 3 个深挖的问题及答案。",
+    "对公司业务进行基础调研，思考你所在的岗位如何为业务创造价值。",
+    "准备 2-3 个高质量的、用于在面试结尾向面试官提问的问题。"
+  ];
+
+  const displayKeyPoints = aiKeyPoints || defaultKeyPoints;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
+        style={{ maxHeight: '82vh' }}
+      >
+        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-purple-400 mb-1">
+              <div className="p-3 bg-purple-500/10 rounded-2xl">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white/90">面试准备建议</h2>
+            </div>
+            <p className="text-purple-400/60 text-[13px] font-medium leading-relaxed tracking-wide">你的简历被看见了。接下来的准备将帮助你更好应对挑战。</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
+            <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
+          </button>
+        </div>
+
+        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
+          <div className="p-5 bg-purple-500/5 border border-purple-500/10 rounded-2xl flex items-start gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-xl mt-0.5">
+              <Info className="w-4 h-4 text-purple-400 shrink-0" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-[14px] font-bold text-white/90">针对 {attempt.company} 的建议</h4>
+              {isLoading ? (
+                <p className="text-[13px] text-white/50 leading-relaxed font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                  AI 正在生成建议...
+                </p>
+              ) : (
+                <p className="text-[13px] text-white/50 leading-relaxed font-medium">
+                  {aiActionPlan || "根据你记录的 JD 关键词，建议重点准备项目经历中的技术难点和业务价值表达。"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
+            <div className="space-y-5">
+              {displayKeyPoints.map((item, i) => (
+                <div key={i} className="flex gap-4 items-start">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
+                    {i + 1}
+                  </div>
+                  <p className="text-[14px] text-white/60 leading-relaxed font-medium">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
+          <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
+            收到，去准备
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 {/* 
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   return (
@@ -1198,7 +1329,7 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
       </motion.div>
     </div>
   );
-}*/}
+}
 
 function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
   return (
@@ -1274,6 +1405,7 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
     </div>
   );
 }
+*/}
 
 function MilestoneModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   const { attempts } = useAppContext();
