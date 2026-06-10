@@ -75,7 +75,7 @@ export function RecordAttempt() {
   const [mood, setMood] = useState<Mood | undefined>();
   const [notes, setNotes] = useState('');
   const [timeline, setTimeline] = useState<any[]>([]);
-  const [fileAttached, setFileAttached] = useState(false); // Simulated file upload
+  // const [fileAttached, setFileAttached] = useState(false); // Simulated file upload
   const [errorMsg, setErrorMsg] = useState('');
 
   const isUpdateMode = !!editId;
@@ -88,7 +88,8 @@ export function RecordAttempt() {
         setRole(existing.role);
         setStage(existing.stage || 'application');
         setStatus(existing.status);
-        set(existing. || '');
+        // set(existing. || '');
+        // setJdText(existing.jdText || '');   // 添加这一行
         setResumeSummary(existing.resumeSummary || '');
         setDescription(existing.description || '');
         setMood(existing.mood);
@@ -110,7 +111,8 @@ export function RecordAttempt() {
     if (!jdText.trim()) missingFields.push('岗位详情 / 要求');
     
     // Resume validation: Text OR Upload (mocked for now as fileAttached check)
-    if (!resumeSummary.trim() && !fileAttached) {
+    //if (!resumeSummary.trim() && !fileAttached) {
+    if (!resumeSummary.trim()) {
       missingFields.push('简历材料');
     }
 
@@ -351,6 +353,33 @@ export function RecordAttempt() {
 
             <div className="space-y-3 pt-4 border-t border-white/5">
               <label className="text-sm font-medium text-white/80">简历材料 <span className="text-red-500/50">*</span></label>
+
+                {/* 方案一：新的 PDF 上传组件（优先使用） */}
+              <div className="mb-4">
+                <ResumeUploader 
+                  onTextExtracted={(text) => setResumeSummary(text)}
+                  onFileRemoved={() => setResumeSummary('')}
+                />
+                <p className="text-[10px] text-white/30 mt-2 text-center">
+                  支持上传 PDF，AI 将自动解析简历内容
+                </p>
+              </div>
+
+                {/* 方案二：原来的手动输入（降级备选） */}
+              <div className="relative">
+                <div className="absolute -top-3 left-4 px-2 text-[10px] font-bold text-white/20 bg-[#050711] z-10">
+                  或者手动填写
+                </div>
+                <Textarea 
+                  value={resumeSummary} 
+                  onChange={e => setResumeSummary(e.target.value)} 
+                  placeholder="粘贴你的项目经历、技能关键词、实习经验摘要..."
+                  className="h-28 text-sm bg-white/5 border-white/10 focus:border-indigo-500/30 pt-4"
+                />
+              </div>
+            </div>
+              
+              {/*
               <div className="grid sm:grid-cols-2 gap-6">
                  <div 
                    onClick={() => setFileAttached(!fileAttached)}
@@ -381,8 +410,17 @@ export function RecordAttempt() {
                     />
                  </div>
               </div>
+            </div> */}
+            
+            {/* PDF简历上传 */}
+            <div className="space-y-3 pt-4 border-t border-white/5">
+              <label className="text-sm font-medium text-white/80">简历材料 <span className="text-red-500/50">*</span></label>
+              <ResumeUploader 
+                onTextExtracted={(text) => setResumeSummary(text)}
+                onFileRemoved={() => setResumeSummary('')}
+              />
             </div>
-
+            
             <div className="space-y-2">
               <label className="text-sm font-medium text-white/80">岗位详情 / 要求 <span className="text-red-500/50">*</span></label>
               <Textarea 
@@ -392,28 +430,6 @@ export function RecordAttempt() {
                 className="h-24 text-sm bg-white/5 border-white/5"
               />
             </div>
-
-            {/* 👇 新增：简历上传组件 */}
-            <div className="space-y-2 mt-4">
-              <ResumeUploader 
-                onTextExtracted={(text) => {
-                  setResumeSummary(text);  // 直接 set resumeSummary
-                }}
-                onFileRemoved={() => {
-                  setResumeSummary('');     // 清空 resumeSummary
-                }}
-                initialFileName={isUpdateMode ? existingResumeFileName : ''}
-              />
-            </div>
-            
-            {/* 可选：手动输入备选 */}
-            <textarea
-              placeholder="或者手动填写简历关键信息（项目经历、技能、实习等）"
-              value={resumeSummary}
-              onChange={(e) => setResumeSummary(e.target.value)}
-              className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white/80 text-sm mt-3"
-              rows={4}
-            />
 
             {feedbackConfig && (
               <div className="space-y-2">
