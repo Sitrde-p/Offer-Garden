@@ -111,6 +111,56 @@ export function Garden() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showLoadDemoConfirm, setShowLoadDemoConfirm] = useState(false);
 
+  // Weekly Insight - API 版（保留原有 Mock 作为降级）
+  const [aiWeeklyInsight, setAiWeeklyInsight] = useState<string | null>(null);
+  const [isInsightLoading, setIsInsightLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchWeeklyInsight = async () => {
+      // 记录太少时，不调用 AI，直接使用原有逻辑
+      if (attempts.length < 2) {
+        setIsInsightLoading(false);
+        return;
+      }
+      
+      try {
+        // 构建简短的上下文
+        const recentSummary = attempts.slice(0, 8).map(a => 
+          `${a.company}(${getStatusLabel(a.status)})`
+        ).join('、');
+        
+        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'replay',  // 复用复盘 action
+            context: {
+              company: "本周求职总结",
+              position: "综合反馈",
+              stage: "汇总",
+              status: "weekly_insight",
+              jd: recentSummary,
+              resume: `共${attempts.length}次投递`,
+              notes: "",
+              mood: ""
+            }
+          })
+        });
+        const data = await response.json();
+        // 从返回中取 emotionalReframe 或 evidence
+        setAiWeeklyInsight(data.emotionalReframe || data.evidence || null);
+      } catch (error) {
+        console.error('获取周洞察失败', error);
+        setAiWeeklyInsight(null);
+      } finally {
+        setIsInsightLoading(false);
+      }
+    };
+    
+    fetchWeeklyInsight();
+  }, [attempts]);
+
+  // 原有的 Mock 逻辑（保持不变，作为降级）
   // Weekly Insight Mock Logic
   const weeklyInsight = useMemo(() => {
     if (attempts.length < 3) {
@@ -130,6 +180,13 @@ export function Garden() {
     
     return "保持当前的投递节奏。记录每一次细微的反馈，它们都会在未来的复盘中为你指明方向。";
   }, [attempts]);
+  
+  // 最终显示：AI 加载中 → AI 结果 → 默认 Mock
+  const weeklyInsight = (() => {
+    if (isInsightLoading && attempts.length >= 2) return "AI 正在分析你的求职趋势...";
+    if (aiWeeklyInsight) return aiWeeklyInsight;
+    return defaultWeeklyInsight;
+  })();
 
   const titleInfo = useMemo(() => {
     let currentTitle = TITLES[0];
