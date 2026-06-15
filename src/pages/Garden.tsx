@@ -178,6 +178,7 @@ export function Garden() {
       } finally {
         setIsInsightLoading(false);
       }
+    };
     
     fetchWeeklyInsight();
   }, [attempts]);
