@@ -869,6 +869,7 @@ function OfferCommunicationModal({ attempt, onClose, onUpdate }: { attempt: Atte
 }
 
 /*
+// 接API的
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1005,6 +1006,7 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
 }
 */
 
+// Mock
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -1248,22 +1250,22 @@ useEffect(() => {
           </div>
        
         <div className="space-y-4">
-          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
+          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
         
           {isLoading ? (
             <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl text-[13px] text-white/40 leading-relaxed font-medium flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
-              AI 正在整理核心准备项...
+              AI 正在生成核心准备项...
             </div>
           ) : (
             <div className="space-y-5">
               {displayTips.map((item, i) => (
                 <div key={i} className="flex gap-4 items-start">
-                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-[2px]">
                     {i + 1}
                   </div>
         
-                  <div className="space-y-1">
+                  <div className={item.title ? "space-y-1" : "pt-[1px]"}>
                     {item.title && (
                       <p className="text-[14px] font-bold text-white/80">
                         {item.title}
@@ -1381,6 +1383,11 @@ useEffect(() => {
         ? defaultKeyPoints
         : [];
 
+  const interviewFocus =
+  Array.isArray(aiKeyPoints) && aiKeyPoints.length > 0
+    ? aiKeyPoints[0]
+    : '项目表达、岗位理解与 STAR 故事准备';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
       <motion.div 
@@ -1424,33 +1431,31 @@ useEffect(() => {
                   <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
                   AI 正在生成建议...
                 </p>
-              ) : aiActionPlan ? (
-                <p className="text-[13px] text-purple-400 leading-relaxed font-medium">
-                  🗓️ 准备计划：{aiActionPlan}
-                </p>
               ) : (
-                <p className="text-[13px] text-white/50 leading-relaxed font-medium">根据你记录的 JD 关键词，建议重点准备项目经历中的技术难点和业务价值表达。</p>
+                <p className="text-[13px] text-purple-400 leading-relaxed font-medium">
+                  🎯 重点方向：{interviewFocus}
+                </p>
               )}
             </div>
           </div>
 
         <div className="space-y-4">
-          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
+          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
         
           {isLoading ? (
             <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl text-[13px] text-white/40 leading-relaxed font-medium flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
-              AI 正在整理重点准备项...
+              AI 正在生成核心准备项...
             </div>
           ) : (
             <div className="space-y-5">
               {displayKeyPoints.map((item, index) => (
                 <div key={index} className="flex gap-4 items-start">
-                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-[2px]">
                     {index + 1}
                   </div>
         
-                  <div className="space-y-1">
+                  <div className="pt-[1px]">
                     <p className="text-[13px] text-white/50 leading-relaxed font-medium">
                       {item}
                     </p>
