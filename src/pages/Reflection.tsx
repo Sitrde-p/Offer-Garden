@@ -209,9 +209,18 @@ export function Reflection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-white/60 leading-relaxed">
-              {reflection.evidence}
-            </p>
+            <ul className="space-y-3">
+              {reflection.evidence
+                .split('\n')
+                .map(item => item.trim())
+                .filter(Boolean)
+                .map((item, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-white/60 leading-relaxed">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/50 mt-1.5 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+            </ul>
           </CardContent>
         </Card>
       </div>
