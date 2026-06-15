@@ -77,6 +77,48 @@ function normalizeStringArray(value: unknown): string[] | null {
   return null;
 }
 
+// 用 localStorage 缓存每条 attempt 的 AI 建议。
+function getAdviceCacheKey(action: string, attempt: Attempt) {
+  return `offerGarden_advice_${action}_${attempt.id}_${attempt.status}`;
+}
+
+function readAdviceCache<T>(action: string, attempt: Attempt): T | null {
+  try {
+    const key = getAdviceCacheKey(action, attempt);
+    const raw = localStorage.getItem(key);
+
+    if (!raw) return null;
+
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    console.error('读取 AI 建议缓存失败', error);
+    return null;
+  }
+}
+
+function writeAdviceCache(action: string, attempt: Attempt, data: unknown) {
+  try {
+    const key = getAdviceCacheKey(action, attempt);
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error('写入 AI 建议缓存失败', error);
+  }
+}
+// 添加周缓存工具函数
+function getWeekKey(date = new Date()) {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear =
+    (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+
+  const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+
+  return `${date.getFullYear()}-W${weekNumber}`;
+}
+
+function getWeeklyInsightCacheKey() {
+  return `offerGarden_weeklyInsight_${getWeekKey()}`;
+}
+
 export function Garden() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -132,56 +174,73 @@ export function Garden() {
   const [aiWeeklyInsight, setAiWeeklyInsight] = useState<string | null>(null);
   const [isInsightLoading, setIsInsightLoading] = useState(true);
   
-  useEffect(() => {
-    const fetchWeeklyInsight = async () => {
-      // 记录太少时，不调用 AI，直接使用原有逻辑
-      if (attempts.length < 2) {
-        setIsInsightLoading(false);
-        return;
+useEffect(() => {
+  const fetchWeeklyInsight = async () => {
+    if (attempts.length < 2) {
+      setIsInsightLoading(false);
+      return;
+    }
+
+    const cacheKey = getWeeklyInsightCacheKey();
+    const cached = localStorage.getItem(cacheKey);
+
+    if (cached) {
+      setAiWeeklyInsight(cached);
+      setIsInsightLoading(false);
+      return;
+    }
+
+    try {
+      const recentSummary = attempts.slice(0, 8).map(a =>
+        `${a.company}(${getStatusLabel(a.status)})`
+      ).join('、');
+
+      const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'replay',
+          context: {
+            company: '本周求职总结',
+            position: '综合反馈',
+            stage: '汇总',
+            status: 'weekly_insight',
+            jd: recentSummary,
+            resume: `共${attempts.length}次投递`,
+            notes: '',
+            mood: ''
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
       }
-      
-      try {
-        // 构建简短的上下文
-        const recentSummary = attempts.slice(0, 8).map(a => 
-          `${a.company}(${getStatusLabel(a.status)})`
-        ).join('、');
-        
-        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'replay',  // 复用复盘 action
-            context: {
-              company: "本周求职总结",
-              position: "综合反馈",
-              stage: "汇总",
-              status: "weekly_insight",
-              jd: recentSummary,
-              resume: `共${attempts.length}次投递`,
-              notes: "",
-              mood: ""
-            }
-          })
-        });
-        
-        const data = await response.json();
-        setAiWeeklyInsight(
-          typeof data.encouragement === 'string' && data.encouragement.trim()
-            ? data.encouragement
-            : Array.isArray(data.evidences) && data.evidences.length > 0
-              ? data.evidences.join('\n')
-              : null
-        );
-      } catch (error) {
-        console.error('获取周洞察失败', error);
-        setAiWeeklyInsight(null);
-      } finally {
-        setIsInsightLoading(false);
+
+      const data = await response.json();
+
+      const insight =
+        typeof data.encouragement === 'string' && data.encouragement.trim()
+          ? data.encouragement
+          : Array.isArray(data.evidences) && data.evidences.length > 0
+            ? data.evidences.join('\n')
+            : null;
+
+      if (insight) {
+        localStorage.setItem(cacheKey, insight);
       }
-    };
-    
-    fetchWeeklyInsight();
-  }, [attempts]);
+
+      setAiWeeklyInsight(insight);
+    } catch (error) {
+      console.error('获取周洞察失败', error);
+      setAiWeeklyInsight(null);
+    } finally {
+      setIsInsightLoading(false);
+    }
+  };
+
+  fetchWeeklyInsight();
+}, [attempts.length]);
 
   // 原有的 Mock 逻辑（保持不变，作为降级）
   const weeklyInsight = useMemo(() => {
@@ -809,48 +868,62 @@ function OfferCommunicationModal({ attempt, onClose, onUpdate }: { attempt: Atte
   );
 }
 
+/*
 function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAdvice = async () => {
-      try {
-        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'waitAdvice',
-            context: {
-              company: attempt.company,
-              position: attempt.role,
-              stage: attempt.stage,
-              status: attempt.status,
-              jd: attempt.jdText || '',
-              resume: attempt.resumeSummary || '',
-              notes: attempt.notes || '',
-              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
-            }
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        // chat.js 返回格式：{ advice, nextStep, reminder }
-        setAiAdvice(data.advice || data.nextStep || null);
-      } catch (error) {
-        console.error('获取等待建议失败', error);
-        setAiAdvice(null);
-      } finally {
-        setIsLoading(false);
+  const fetchAdvice = async () => {
+    const cached = readAdviceCache<{ advice?: string; nextStep?: string; reminder?: string }>(
+      'waitAdvice',
+      attempt
+    );
+
+    if (cached) {
+      setAiAdvice(cached.advice || cached.nextStep || cached.reminder || null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'waitAdvice',
+          context: {
+            company: attempt.company,
+            position: attempt.role,
+            stage: attempt.stage,
+            status: attempt.status,
+            jd: attempt.jdText || '',
+            resume: attempt.resumeSummary || '',
+            notes: attempt.notes || '',
+            mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
       }
-    };
-    
-    fetchAdvice();
-  }, [attempt]); // 依赖 attempt，当 attempt 变化时重新获取
+
+      const data = await response.json();
+
+      writeAdviceCache('waitAdvice', attempt, data);
+
+      setAiAdvice(data.advice || data.nextStep || data.reminder || null);
+    } catch (error) {
+      console.error('获取等待建议失败', error);
+      setAiAdvice(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchAdvice();
+}, [attempt.id, attempt.status]);
 
   const defaultAdvice = "目前还没有拒信、筛选反馈或面试结果。你可以先检查简历与岗位关键词的匹配度，并在合适时间准备后续跟进。";
 
@@ -884,7 +957,7 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
             <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
           </button>
         </div>
-
+        
         <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
           <div className="space-y-4">
             <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">AI 建议</h3>
@@ -930,58 +1003,173 @@ function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, 
     </div>
   );
 }
+*/
+
+function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
+        style={{ maxHeight: '82vh' }}
+      >
+        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-blue-400 mb-1">
+              <div className="p-3 bg-blue-500/10 rounded-2xl">
+                <Clock className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white/90">等待建议</h2>
+            </div>
+            <p className="text-blue-400/60 text-[13px] font-medium leading-relaxed tracking-wide">
+              这次还没有明确反馈，先别急着把沉默翻译成失败。
+            </p>
+          </div>
+
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
+            <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
+          </button>
+        </div>
+
+        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">
+              说明
+            </h3>
+            <p className="text-[14px] text-white/70 leading-relaxed">
+              目前还没有拒信、筛选反馈或面试结果，因此系统暂时不做失败归因。你可以先检查简历与岗位关键词的匹配度，同时准备同类岗位的下一轮投递。
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">
+              建议
+            </h3>
+            <ul className="space-y-3">
+              {[
+                "检查岗位详情 / 要求中的核心关键词是否出现在简历材料中。",
+                "准备同类岗位的下一轮投递，不要把情绪全部压在一个无回应结果上。",
+                "如果已经等待较久，可以记录一次跟进提醒。"
+              ].map((item, i) => (
+                <li key={i} className="flex gap-3 text-[14px] text-white/50 leading-relaxed font-medium">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400/40 mt-1.5 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="p-5 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
+            <div className="text-[11px] font-black text-white/20 uppercase tracking-widest">
+              当前心情
+            </div>
+            <div className="text-[14px] text-white/60 font-bold">
+              {getMoodLabel(attempt.mood)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5 grid grid-cols-2 gap-4">
+          <Button
+            variant="ghost"
+            className="w-full h-11 bg-white/5 hover:bg-white/10 text-white/60 text-[14px]"
+            onClick={onClose}
+          >
+            返回花园
+          </Button>
+          <Button
+            className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-bold border-0 shadow-lg shadow-blue-500/20 text-[14px]"
+            onClick={onUpdate}
+          >
+            更新记录
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
   const [aiFocus, setAiFocus] = useState<string | null>(null);
   const [aiTips, setAiTips] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAdvice = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'examPrep',
-            context: {
-              company: attempt.company,
-              position: attempt.role,
-              stage: attempt.stage,
-              status: attempt.status,
-              jd: attempt.jdText || '',
-              resume: attempt.resumeSummary || '',
-              notes: attempt.notes || '',
-              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
-            }
-          })
-        });
+useEffect(() => {
+  const fetchAdvice = async () => {
+    setIsLoading(true);
 
-        if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
-        }
+    const cached = readAdviceCache<{ focus?: string; tips?: string[]; resources?: string }>(
+      'examPrep',
+      attempt
+    );
 
-        const data = await response.json();
-        console.log('examPrep API 返回:', data);
+    if (cached) {
+      setAiFocus(
+        typeof cached.focus === 'string' && cached.focus.trim()
+          ? cached.focus.trim()
+          : null
+      );
+      setAiTips(normalizeStringArray(cached.tips));
+      setIsLoading(false);
+      return;
+    }
 
-        setAiFocus(
-          typeof data.focus === 'string' && data.focus.trim()
-            ? data.focus.trim()
-            : null
-        );
-        setAiTips(normalizeStringArray(data.tips));
-      } catch (error) {
-        console.error('获取测评建议失败', error);
-        setAiFocus(null);
-        setAiTips(null);
-      } finally {
-        setIsLoading(false);
+    try {
+      const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'examPrep',
+          context: {
+            company: attempt.company,
+            position: attempt.role,
+            stage: attempt.stage,
+            status: attempt.status,
+            jd: attempt.jdText || '',
+            resume: attempt.resumeSummary || '',
+            notes: attempt.notes || '',
+            mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
       }
-    };
 
-    fetchAdvice();
-  }, [attempt.id]);
+      const data = await response.json();
+
+      console.log('examPrep API 返回:', data);
+
+      writeAdviceCache('examPrep', attempt, data);
+
+      setAiFocus(
+        typeof data.focus === 'string' && data.focus.trim()
+          ? data.focus.trim()
+          : null
+      );
+
+      setAiTips(normalizeStringArray(data.tips));
+    } catch (error) {
+      console.error('获取测评建议失败', error);
+      setAiFocus(null);
+      setAiTips(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchAdvice();
+}, [attempt.id, attempt.status]);
 
   const defaultTips = [
     { title: "确认测评类型", content: "先查看邮件或平台说明，判断是性格测评、逻辑测评、语言测评、编程题、数据分析题，还是综合测评。" },
@@ -993,11 +1181,13 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
 
   const displayTips =
     Array.isArray(aiTips) && aiTips.length > 0
-      ? aiTips.map((tip, index) => ({
-          title: `AI 建议 ${index + 1}`,
+      ? aiTips.map((tip) => ({
+          title: '',
           content: tip
         }))
-      : defaultTips;
+      : !isLoading
+        ? defaultTips
+        : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
@@ -1056,23 +1246,37 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
               )}
             </div>
           </div>
-
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
+       
+        <div className="space-y-4">
+          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
+        
+          {isLoading ? (
+            <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl text-[13px] text-white/40 leading-relaxed font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+              AI 正在整理核心准备项...
+            </div>
+          ) : (
             <div className="space-y-5">
               {displayTips.map((item, i) => (
                 <div key={i} className="flex gap-4 items-start">
                   <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
                     {i + 1}
                   </div>
+        
                   <div className="space-y-1">
-                    <p className="text-[14px] font-bold text-white/80">{item.title}</p>
-                    <p className="text-[13px] text-white/40 leading-relaxed font-medium">{item.content}</p>
+                    {item.title && (
+                      <p className="text-[14px] font-bold text-white/80">
+                        {item.title}
+                      </p>
+                    )}
+                    <p className="text-[13px] text-white/50 leading-relaxed font-medium">
+                      {item.content}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
 
         <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
@@ -1090,52 +1294,77 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
   const [aiActionPlan, setAiActionPlan] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAdvice = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('https://offer-garden.vercel.app/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'interviewPrep',
-            context: {
-              company: attempt.company,
-              position: attempt.role,
-              stage: attempt.stage,
-              status: attempt.status,
-              jd: attempt.jdText || '',
-              resume: attempt.resumeSummary || '',
-              notes: attempt.notes || '',
-              mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
-            }
-          })
-        });
+useEffect(() => {
+  const fetchAdvice = async () => {
+    setIsLoading(true);
 
-        if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
-        }
+    const cached = readAdviceCache<{
+      keyPoints?: string[];
+      starTopics?: string[];
+      questions?: string[];
+      actionPlan?: string;
+    }>('interviewPrep', attempt);
 
-        const data = await response.json();
-        console.log('interviewPrep API 返回:', data);
+    if (cached) {
+      setAiKeyPoints(normalizeStringArray(cached.keyPoints));
 
-        setAiKeyPoints(normalizeStringArray(data.keyPoints));
-        setAiActionPlan(
-          typeof data.actionPlan === 'string' && data.actionPlan.trim()
-            ? data.actionPlan.trim()
-            : null
-        );
-      } catch (error) {
-        console.error('获取面试建议失败', error);
-        setAiKeyPoints(null);
-        setAiActionPlan(null);
-      } finally {
-        setIsLoading(false);
+      setAiActionPlan(
+        typeof cached.actionPlan === 'string' && cached.actionPlan.trim()
+          ? cached.actionPlan.trim()
+          : null
+      );
+
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('https://offer-garden.vercel.app/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'interviewPrep',
+          context: {
+            company: attempt.company,
+            position: attempt.role,
+            stage: attempt.stage,
+            status: attempt.status,
+            jd: attempt.jdText || '',
+            resume: attempt.resumeSummary || '',
+            notes: attempt.notes || '',
+            mood: attempt.mood ? getMoodLabel(attempt.mood) : '未记录'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
       }
-    };
 
-    fetchAdvice();
-  }, [attempt.id]);
+      const data = await response.json();
+
+      console.log('interviewPrep API 返回:', data);
+
+      writeAdviceCache('interviewPrep', attempt, data);
+
+      setAiKeyPoints(normalizeStringArray(data.keyPoints));
+
+      setAiActionPlan(
+        typeof data.actionPlan === 'string' && data.actionPlan.trim()
+          ? data.actionPlan.trim()
+          : null
+      );
+    } catch (error) {
+      console.error('获取面试建议失败', error);
+      setAiKeyPoints(null);
+      setAiActionPlan(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchAdvice();
+}, [attempt.id, attempt.status]);
   
   const defaultKeyPoints = [
     "准备 3 个能够体现你解决复杂问题能力的 STAR 故事。",
@@ -1147,7 +1376,9 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
   const displayKeyPoints =
     Array.isArray(aiKeyPoints) && aiKeyPoints.length > 0
       ? aiKeyPoints
-      : defaultKeyPoints;
+      : !isLoading
+        ? defaultKeyPoints
+        : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
@@ -1202,28 +1433,31 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
-
+        <div className="space-y-4">
+          <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
+        
+          {isLoading ? (
+            <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl text-[13px] text-white/40 leading-relaxed font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+              AI 正在整理重点准备项...
+            </div>
+          ) : (
             <div className="space-y-5">
               {displayKeyPoints.map((item, index) => (
                 <div key={index} className="flex gap-4 items-start">
                   <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
                     {index + 1}
                   </div>
-
+        
                   <div className="space-y-1">
-                    <p className="text-[14px] font-bold text-white/80">
-                      AI 建议 {index + 1}
-                    </p>
-                    <p className="text-[13px] text-white/40 leading-relaxed font-medium">
+                    <p className="text-[13px] text-white/50 leading-relaxed font-medium">
                       {item}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
 
         <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
