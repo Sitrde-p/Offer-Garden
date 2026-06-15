@@ -60,6 +60,23 @@ const TITLES = [
   { min: 100, name: '被拒绝的勇气' },
 ];
 
+//添加数组规范化函数
+function normalizeStringArray(value: unknown): string[] | null {  
+  if (Array.isArray(value)) {
+    const result = value
+      .map(item => String(item).trim())
+      .filter(Boolean);
+
+    return result.length > 0 ? result : null;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value.trim()];
+  }
+
+  return null;
+}
+
 export function Garden() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -146,22 +163,26 @@ export function Garden() {
             }
           })
         });
+        
         const data = await response.json();
-        // 从返回中取 emotionalReframe 或 evidence
-        setAiWeeklyInsight(data.emotionalReframe || data.evidence || null);
+        setAiWeeklyInsight(
+          typeof data.encouragement === 'string' && data.encouragement.trim()
+            ? data.encouragement
+            : Array.isArray(data.evidences) && data.evidences.length > 0
+              ? data.evidences.join('\n')
+              : null
+        );
       } catch (error) {
         console.error('获取周洞察失败', error);
         setAiWeeklyInsight(null);
       } finally {
         setIsInsightLoading(false);
       }
-    };
     
     fetchWeeklyInsight();
   }, [attempts]);
 
   // 原有的 Mock 逻辑（保持不变，作为降级）
-  // Weekly Insight Mock Logic
   const weeklyInsight = useMemo(() => {
     // AI loading state takes priority
     if (isInsightLoading && attempts.length >= 2) {
@@ -916,6 +937,7 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
 
   useEffect(() => {
     const fetchAdvice = async () => {
+      setIsLoading(true);
       try {
         const response = await fetch('https://offer-garden.vercel.app/api/chat', {
           method: 'POST',
@@ -934,15 +956,20 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
             }
           })
         });
-        
+
         if (!response.ok) {
           throw new Error(`API 请求失败: ${response.status}`);
         }
-        
+
         const data = await response.json();
-        // chat.js 返回格式：{ focus, tips, resources }
-        setAiFocus(data.focus || null);
-        setAiTips(data.tips || null);
+        console.log('examPrep API 返回:', data);
+
+        setAiFocus(
+          typeof data.focus === 'string' && data.focus.trim()
+            ? data.focus.trim()
+            : null
+        );
+        setAiTips(normalizeStringArray(data.tips));
       } catch (error) {
         console.error('获取测评建议失败', error);
         setAiFocus(null);
@@ -951,9 +978,9 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
         setIsLoading(false);
       }
     };
-    
+
     fetchAdvice();
-  }, [attempt]);
+  }, [attempt.id]);
 
   const defaultTips = [
     { title: "确认测评类型", content: "先查看邮件或平台说明，判断是性格测评、逻辑测评、语言测评、编程题、数据分析题，还是综合测评。" },
@@ -963,7 +990,13 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
     { title: "保持答案一致性", content: "如果是性格或情景判断题，保持真实、稳定、一致，不要为了'讨好公司'前后矛盾。" }
   ];
 
-  const displayTips = aiTips ? aiTips.map((tip, idx) => ({ title: `建议${idx + 1}`, content: tip })) : defaultTips;
+  const displayTips =
+    Array.isArray(aiTips) && aiTips.length > 0
+      ? aiTips.map((tip, index) => ({
+          title: `AI 建议 ${index + 1}`,
+          content: tip
+        }))
+      : defaultTips;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
@@ -1015,7 +1048,7 @@ function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () =
                   )}
                   {!aiFocus && (
                     <p className="text-[13px] text-white/50 leading-relaxed font-medium">
-                      根据你记录的岗位信息和当前阶段，建议先确认测评类型，并围绕岗位要求准备对应题型。
+                      根据你记录的岗位信息和当前阶段，建议先确认测评类型，并围绕岗位要求准备对应题型。 
                     </p>
                   )}
                 </>
@@ -1058,6 +1091,7 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
 
   useEffect(() => {
     const fetchAdvice = async () => {
+      setIsLoading(true);
       try {
         const response = await fetch('https://offer-garden.vercel.app/api/chat', {
           method: 'POST',
@@ -1076,15 +1110,20 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
             }
           })
         });
-        
+
         if (!response.ok) {
           throw new Error(`API 请求失败: ${response.status}`);
         }
-        
+
         const data = await response.json();
-        // chat.js 返回格式：{ keyPoints, starTopics, questions, actionPlan }
-        setAiKeyPoints(data.keyPoints || null);
-        setAiActionPlan(data.actionPlan || null);
+        console.log('interviewPrep API 返回:', data);
+
+        setAiKeyPoints(normalizeStringArray(data.keyPoints));
+        setAiActionPlan(
+          typeof data.actionPlan === 'string' && data.actionPlan.trim()
+            ? data.actionPlan.trim()
+            : null
+        );
       } catch (error) {
         console.error('获取面试建议失败', error);
         setAiKeyPoints(null);
@@ -1093,10 +1132,10 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
         setIsLoading(false);
       }
     };
-    
-    fetchAdvice();
-  }, [attempt]);
 
+    fetchAdvice();
+  }, [attempt.id]);
+  
   const defaultKeyPoints = [
     "准备 3 个能够体现你解决复杂问题能力的 STAR 故事。",
     "复盘项目中最核心的技术难点，写下至少 3 个深挖的问题及答案。",
@@ -1104,7 +1143,10 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
     "准备 2-3 个高质量的、用于在面试结尾向面试官提问的问题。"
   ];
 
-  const displayKeyPoints = aiKeyPoints || defaultKeyPoints;
+  const displayKeyPoints =
+    Array.isArray(aiKeyPoints) && aiKeyPoints.length > 0
+      ? aiKeyPoints
+      : defaultKeyPoints;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
@@ -1149,23 +1191,34 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
                   <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
                   AI 正在生成建议...
                 </p>
-              ) : (
-                <p className="text-[13px] text-white/50 leading-relaxed font-medium">
-                  {aiActionPlan || "根据你记录的 JD 关键词，建议重点准备项目经历中的技术难点和业务价值表达。"}
+              ) : aiActionPlan ? (
+                <p className="text-[13px] text-purple-400 leading-relaxed font-medium">
+                  🗓️ 准备计划：{aiActionPlan}
                 </p>
+              ) : (
+                <p className="text-[13px] text-white/50 leading-relaxed font-medium">根据你记录的 JD 关键词，建议重点准备项目经历中的技术难点和业务价值表达。</p>
               )}
             </div>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
+            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">重点准备项</h3>
+
             <div className="space-y-5">
-              {displayKeyPoints.map((item, i) => (
-                <div key={i} className="flex gap-4 items-start">
+              {displayKeyPoints.map((item, index) => (
+                <div key={index} className="flex gap-4 items-start">
                   <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
-                    {i + 1}
+                    {index + 1}
                   </div>
-                  <p className="text-[14px] text-white/60 leading-relaxed font-medium">{item}</p>
+
+                  <div className="space-y-1">
+                    <p className="text-[14px] font-bold text-white/80">
+                      AI 建议 {index + 1}
+                    </p>
+                    <p className="text-[13px] text-white/40 leading-relaxed font-medium">
+                      {item}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1173,7 +1226,10 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
         </div>
 
         <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
-          <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
+          <Button
+            className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20"
+            onClick={onClose}
+          >
             收到，去准备
           </Button>
         </div>
@@ -1181,231 +1237,6 @@ function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose:
     </div>
   );
 }
-
-{/* 
-function WaitingAdviceModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
-        style={{ maxHeight: '82vh' }}
-      >
-        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
-             <div className="space-y-2">
-                <div className="flex items-center gap-3 text-blue-400 mb-1">
-                   <div className="p-3 bg-blue-500/10 rounded-2xl">
-                      <Clock className="w-7 h-7" />
-                   </div>
-                   <h2 className="text-xl font-bold tracking-tight text-white/90">等待建议</h2>
-                </div>
-                <p className="text-blue-400/60 text-[13px] font-medium leading-relaxed tracking-wide">这次还没有明确反馈，先别急着把沉默翻译成失败。</p>
-             </div>
-             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
-                <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
-             </button>
-        </div>
-
-        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">说明</h3>
-            <p className="text-[14px] text-white/70 leading-relaxed">
-              目前还没有拒信、筛选反馈或面试结果，因此系统暂时不做失败归因。你可以先检查简历与岗位关键词的匹配度，并在合适时间准备后续跟进。
-            </p>
-          </div>
-
-          <div className="space-y-4">
-             <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">建议</h3>
-             <ul className="space-y-3">
-                {[
-                  "检查岗位详情 / 要求中的核心关键词是否出现在简历材料中。",
-                  "准备同类岗位的下一轮投递，不要把情绪全部压在一个无回应结果上。",
-                  "如果已经等待较久，可以记录一次跟进提醒。"
-                ].map((item, i) => (
-                  <li key={i} className="flex gap-3 text-[14px] text-white/50 leading-relaxed font-medium">
-                     <div className="w-1.5 h-1.5 rounded-full bg-blue-400/40 mt-1.5 shrink-0" />
-                     {item}
-                  </li>
-                ))}
-             </ul>
-          </div>
-
-          <div className="p-5 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
-             <div className="text-[11px] font-black text-white/20 uppercase tracking-widest">当前心情</div>
-             <div className="text-[14px] text-white/60 font-bold">{getMoodLabel(attempt.mood)}</div>
-          </div>
-        </div>
-
-        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5 grid grid-cols-2 gap-4">
-             <Button variant="ghost" className="w-full h-11 bg-white/5 hover:bg-white/10 text-white/60 text-[14px]" onClick={onClose}>返回花园</Button>
-             <Button className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-bold border-0 shadow-lg shadow-blue-500/20 text-[14px]" onClick={onUpdate}>更新记录</Button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function TestAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
-        style={{ maxHeight: '82vh' }}
-      >
-        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
-             <div className="space-y-2">
-                <div className="flex items-center gap-3 text-purple-400 mb-1">
-                   <div className="p-3 bg-purple-500/10 rounded-2xl">
-                      <Sparkles className="w-7 h-7" />
-                   </div>
-                   <h2 className="text-xl font-bold tracking-tight text-white/90">测评准备建议</h2>
-                </div>
-                <p className="text-purple-400/60 text-[13px] font-medium leading-relaxed">这一步通常考察基础能力、稳定性和岗位匹配度。先把节奏稳住。</p>
-             </div>
-             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
-                <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
-             </button>
-        </div>
-
-        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
-           <div className="p-5 bg-purple-500/5 border border-purple-500/10 rounded-2xl flex items-start gap-3">
-              <Info className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <h4 className="text-[14px] font-bold text-white/90">针对 {attempt.company} 的建议</h4>
-                <p className="text-[13px] text-white/50 leading-relaxed font-medium">
-                  根据你记录的岗位信息和当前阶段，建议先确认测评类型，并围绕岗位要求准备对应题型。重点不是盲目刷题，而是把时间用在最可能出现的能力项上。
-                </p>
-              </div>
-           </div>
-
-           <div className="space-y-4">
-              <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
-              <div className="space-y-5">
-                {[
-                  { title: "确认测评类型", content: "先查看邮件或平台说明，判断是性格测评、逻辑测评、语言测评、编程题、数据分析题，还是综合测评。" },
-                  { title: "对齐岗位能力", content: "根据 JD 中的关键词，优先准备最相关的能力项，例如编程基础、数据分析、产品思维、逻辑推理、沟通协作或业务理解。" },
-                  { title: "做一次限时练习", content: "不要只看题，要模拟真实时间限制，提前适应节奏。" },
-                  { title: "准备稳定环境", content: "提前检查网络、浏览器、摄像头、麦克风、输入法和安静环境。" },
-                  { title: "保持答案一致性", content: "如果是性格或情景判断题，保持真实、稳定、一致，不要为了“讨好公司”前后矛盾。" }
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
-                      {i + 1}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[14px] font-bold text-white/80">{item.title}</p>
-                      <p className="text-[13px] text-white/40 leading-relaxed font-medium">{item.content}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-           </div>
-        </div>
-
-        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
-          <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
-            收到，去准备
-          </Button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function InterviewAdviceModal({ attempt, onClose }: { attempt: Attempt, onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-[min(480px,92vw)] bg-[#11141a] border border-white/10 rounded-[32px] overflow-hidden relative z-10 shadow-2xl flex flex-col"
-        style={{ maxHeight: '82vh' }}
-      >
-        <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-start">
-             <div className="space-y-2">
-                <div className="flex items-center gap-3 text-purple-400 mb-1">
-                   <div className="p-3 bg-purple-500/10 rounded-2xl">
-                      <Sparkles className="w-7 h-7" />
-                   </div>
-                   <h2 className="text-xl font-bold tracking-tight text-white/90">面试准备建议</h2>
-                </div>
-                <p className="text-purple-400/60 text-[13px] font-medium leading-relaxed tracking-wide">你的简历被看见了。接下来的准备将帮助你更好应对挑战。</p>
-             </div>
-             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors group">
-                <X className="w-6 h-6 text-white/20 group-hover:text-white/50" />
-             </button>
-        </div>
-
-        <div className="flex-1 px-8 py-6 space-y-8 overflow-y-auto custom-scrollbar">
-           <div className="p-5 bg-purple-500/5 border border-purple-500/10 rounded-2xl flex items-start gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-xl mt-0.5">
-                <Info className="w-4 h-4 text-purple-400 shrink-0" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-[14px] font-bold text-white/90">针对 {attempt.company} 的建议</h4>
-                <p className="text-[13px] text-white/50 leading-relaxed font-medium">
-                  根据你记录的 JD 关键词，面试官可能会重点考察你对“系统稳定性”和“跨端性能优化”的理解。
-                </p>
-              </div>
-           </div>
-
-           <div className="space-y-4">
-              <h3 className="text-[11px] font-black text-white/20 uppercase tracking-widest border-l-2 border-white/10 pl-3">核心准备项</h3>
-              <div className="space-y-5">
-                {[
-                  "准备 3 个能够体现你解决复杂问题能力的 STAR 故事。",
-                  "复盘项目中最核心的技术难点，写下至少 3 个深挖的问题及答案。",
-                  "对公司业务进行基础调研，思考你所在的岗位如何为业务创造价值。",
-                  "准备 2-3 个高质量的、用于在面试结尾向面试官提问的问题。"
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[11px] font-bold text-purple-400 shrink-0 mt-1">
-                      {i + 1}
-                    </div>
-                    <p className="text-[14px] text-white/60 leading-relaxed font-medium">{item}</p>
-                  </div>
-                ))}
-              </div>
-           </div>
-        </div>
-
-        <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
-          <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
-            收到，去准备
-          </Button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-*/}
 
 function MilestoneModal({ attempt, onClose, onUpdate }: { attempt: Attempt, onClose: () => void, onUpdate: () => void }) {
   const { attempts } = useAppContext();
