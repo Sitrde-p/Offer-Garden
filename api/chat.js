@@ -18,6 +18,8 @@ export default async function handler(req, res) {
   }
 
   const { action, context } = req.body;
+  
+  console.log('[Offer Garden API]', action, context?.company, context?.status);
 
   try {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
