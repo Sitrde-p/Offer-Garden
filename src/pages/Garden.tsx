@@ -1278,6 +1278,7 @@ useEffect(() => {
             </div>
           )}
         </div>
+      </div>
 
         <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
           <Button className="w-full h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold border-0 shadow-lg shadow-purple-500/20" onClick={onClose}>
@@ -1459,6 +1460,7 @@ useEffect(() => {
             </div>
           )}
         </div>
+       </div>
 
         <div className="flex-shrink-0 px-8 py-6 border-t border-white/5">
           <Button
